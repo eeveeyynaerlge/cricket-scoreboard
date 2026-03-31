@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cricket Scorer Pro</title>
+
+<style>
+body { font-family: Arial; margin: 0; background:#111; color:white; text-align:center; }
+.container { max-width:600px; margin:auto; padding:10px; }
+
+.score { font-size:40px; font-weight:bold; }
+.sub { color:#ccc; }
+
+.section { margin:10px 0; }
+
+input { width:60px; margin:3px; }
+
+button {
+  padding:12px;
+  font-size:16px;
+  margin:3px;
+  border:none;
+  border-radius:8px;
+  background:#333;
+  color:white;
+}
+
+.grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
+}
+
+.batsmen {
+  display:flex;
+  justify-content:space-between;
+  margin-top:10px;
+}
+
+.player { background:#222; padding:8px; border-radius:8px; width:40%; }
+
+.hidden { display:none; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<!-- SETUP -->
+<div id="setup">
+  <h2>Match Setup</h2>
+
+  Players/team <input id="players" value="11"><br>
+  Balls/over <input id="ballsOver" value="6"><br>
+  Overs limit <input id="oversLimit" value="5"><br>
+  Overs per wicket <input id="oversWicket" value="0"><br>
+
+  <button onclick="startMatch()">Start Match</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="hidden">
+
+<div class="score" id="score">0 / 0</div>
+<div class="sub" id="info"></div>
+<div class="sub" id="target"></div>
+
+<div class="batsmen">
+  <div class="player">
+    <div id="bat1">0 (0)</div>
+  </div>
+
+  <div id="wkts">Wkts: 0</div>
+
+  <div class="player">
+    <div id="bat2">0 (0)</div>
+  </div>
+</div>
+
+<div class="grid">
+  <button onclick="scoreRuns(0)">•</button>
+  <button onclick="scoreRuns(1)">1</button>
+  <button onclick="scoreRuns(2)">2</button>
+  <button onclick="scoreRuns(3)">3</button>
+  <button onclick="scoreRuns(4)">4</button>
+  <button onclick="scoreRuns(6)">6</button>
+
+  <button onclick="wicket()">W</button>
+  <button onclick="extra('wide')">Wd</button>
+
+  <button onclick="noBall(0)">Nb</button>
+  <button onclick="noBall(1)">Nb+1</button>
+  <button onclick="noBall(2)">Nb+2</button>
+
+  <button onclick="extra('bye')">Bye</button>
+  <button onclick="extra('legbye')">Lb</button>
+
+  <button onclick="undo()">Undo</button>
+</div>
+
+</div>
+
+</div>
+
+<script>
+/* SETTINGS */
+let players, ballsPerOver, oversLimit, oversPerWicket;
+
+/* MATCH */
+let innings = 1;
+let target = 0;
+
+/* STATE */
+let runs, wickets, balls;
+let bat1, bat2, striker;
+let history = [];
+
+function startMatch(){
+  players = +document.getElementById("players").value;
+  ballsPerOver = +document.getElementById("ballsOver").value;
+  oversLimit = +document.getElementById("oversLimit").value;
+  oversPerWicket = +document.getElementById("oversWicket").value;
+
+  document.getElementById("setup").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+
+  newInnings();
+}
+
+function newInnings(){
+  runs = 0; wickets = 0; balls = 0;
+  bat1 = {runs:0,balls:0};
+  bat2 = {runs:0,balls:0};
+  striker = 1;
+  history = [];
+  update();
+}
+
+/* ---------- DISPLAY ---------- */
+
+function update(){
+  let overs = Math.floor(balls / ballsPerOver);
+  let rem = balls % ballsPerOver;
+
+  document.getElementById("score").innerText = runs+" / "+wickets;
+  document.getElementById("info").innerText = 
+    "Innings "+innings+" | Overs "+overs+"."+rem;
+
+  document.getElementById("wkts").innerText = "Wkts: "+wickets;
+
+  document.getElementById("bat1").innerText =
+    bat1.runs+" ("+bat1.balls+")";
+  document.getElementById("bat2").innerText =
+    bat2.runs+" ("+bat2.balls+")";
+
+  if(innings===2){
+    let need = target - runs;
+    document.getElementById("target").innerText =
+      need>0 ? "Need "+need : "Target Reached!";
+  }
+}
+
+/* ---------- CORE ---------- */
+
+function swap(){ striker = striker===1?2:1; }
+
+function addBall(){
+  balls++;
+
+  if(striker===1) bat1.balls++;
+  else bat2.balls++;
+
+  if(balls % ballsPerOver === 0){
+    swap();
+  }
+}
+
+function scoreRuns(r){
+  save();
+
+  runs += r;
+  addBall();
+
+  if(striker===1) bat1.runs += r;
+  else bat2.runs += r;
+
+  if(r%2===1) swap();
+
+  checkEnd();
+  update();
+}
+
+function wicket(){
+  save();
+
+  wickets++;
+  addBall();
+
+  if(striker===1) bat1={runs:0,balls:0};
+  else bat2={runs:0,balls:0};
+
+  checkEnd();
+  update();
+}
+
+/* ---------- EXTRAS ---------- */
+
+function extra(type){
+  save();
+
+  if(type==="wide") runs += 1;
+
+  if(type==="bye" || type==="legbye"){
+    runs += 1;
+    addBall();
+    swap();
+  }
+
+  checkEnd();
+  update();
+}
+
+function noBall(r){
+  save();
+
+  runs += 1 + r;
+
+  if(striker===1) bat1.runs += r;
+  else bat2.runs += r;
+
+  if((1+r)%2===1) swap();
+
+  checkEnd();
+  update();
+}
+
+/* ---------- END LOGIC ---------- */
+
+function checkEnd(){
+  let overs = Math.floor(balls / ballsPerOver);
+
+  let allOut = wickets >= players-1;
+  let oversUp = overs >= oversLimit;
+
+  if(allOut || oversUp){
+    if(innings===1){
+      target = runs+1;
+      innings = 2;
+      newInnings();
+    } else {
+      endMatch();
+    }
+  }
+
+  if(innings===2 && runs>=target){
+    endMatch(true);
+  }
+}
+
+function endMatch(win){
+  document.getElementById("target").innerText =
+    win ? "Team 2 Wins 🎉" : "Innings Complete";
+}
+
+/* ---------- UNDO ---------- */
+
+function save(){
+  history.push(JSON.stringify({
+    runs,wickets,balls,bat1,bat2,striker
+  }));
+}
+
+function undo(){
+  if(history.length){
+    let s = JSON.parse(history.pop());
+    Object.assign(window,s);
+    update();
+  }
+}
+</script>
+
+</body>
+</html>
