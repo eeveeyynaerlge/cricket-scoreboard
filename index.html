@@ -105,6 +105,7 @@ button {
   <div class="modal-box">
     <h2 id="popupText"></h2>
     <button onclick="closePopup()">Continue</button>
+    <button onclick="restartMatch()">Restart Match</button>
   </div>
 </div>
 
@@ -118,6 +119,9 @@ let runs, wickets, balls;
 let bat1, bat2, striker;
 let history = [];
 
+let matchEnded = false;
+let popupActive = false;
+
 /* ---------- SETUP ---------- */
 function startMatch(){
   players = +document.getElementById("players").value;
@@ -128,9 +132,26 @@ function startMatch(){
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("game").classList.remove("hidden");
 
+  resetMatch();
+}
+
+/* ---------- RESET ---------- */
+function resetMatch(){
+  innings = 1;
+  target = 0;
+  matchEnded = false;
+  popupActive = false;
   newInnings();
 }
 
+function restartMatch(){
+  document.getElementById("popup").classList.add("hidden");
+  document.getElementById("setup").classList.remove("hidden");
+  document.getElementById("game").classList.add("hidden");
+  resetMatch();
+}
+
+/* ---------- INNINGS ---------- */
 function newInnings(){
   runs=0; wickets=0; balls=0;
   bat1={runs:0,balls:0};
@@ -155,19 +176,18 @@ function update(){
   if(innings===2){
     let need=target-runs;
     document.getElementById("target").innerText=need>0?"Need "+need:"Target reached!";
+  } else {
+    document.getElementById("target").innerText="";
   }
 }
 
 /* ---------- CORE ---------- */
-function swap(){ striker=striker===1?2:1; }
+function swap(){ if(!quickMode) striker=striker===1?2:1; }
 
 function addBall(){
   balls++;
   if(striker===1) bat1.balls++; else bat2.balls++;
-
-  if(balls%ballsPerOver===0 && !quickMode){
-    swap();
-  }
+  if(balls%ballsPerOver===0) swap();
 }
 
 function scoreRuns(r){
@@ -177,7 +197,7 @@ function scoreRuns(r){
 
   if(striker===1) bat1.runs+=r; else bat2.runs+=r;
 
-  if(r%2===1 && !quickMode) swap();
+  if(r%2===1) swap();
 
   checkEnd();
   update();
@@ -189,7 +209,7 @@ function wicket(){
   addBall();
 
   if(quickMode){
-    bat1={runs:0,balls:0}; // always single batter
+    bat1={runs:0,balls:0};
   } else {
     if(striker===1) bat1={runs:0,balls:0};
     else bat2={runs:0,balls:0};
@@ -208,7 +228,7 @@ function extra(type){
   if(type==="bye"||type==="legbye"){
     runs+=1;
     addBall();
-    if(!quickMode) swap();
+    swap();
   }
 
   checkEnd();
@@ -221,16 +241,17 @@ function noBall(r){
 
   if(striker===1) bat1.runs+=r; else bat2.runs+=r;
 
-  if((1+r)%2===1 && !quickMode) swap();
+  if((1+r)%2===1) swap();
 
   checkEnd();
   update();
 }
 
-/* ---------- END + POPUP ---------- */
+/* ---------- END LOGIC ---------- */
 function checkEnd(){
-  let overs=Math.floor(balls/ballsPerOver);
+  if(matchEnded) return;
 
+  let overs=Math.floor(balls/ballsPerOver);
   let allOut=wickets>=players-1;
   let oversUp=overs>=oversLimit;
 
@@ -241,7 +262,10 @@ function checkEnd(){
       target=runs+1;
       showPopup("End of Innings 1 ("+reason+")<br>Target: "+target);
       innings=2;
+      return;
     } else {
+      matchEnded=true;
+
       if(runs===target-1){
         showPopup("Match Tied 🤝");
       } else if(runs>=target){
@@ -249,27 +273,30 @@ function checkEnd(){
       } else {
         showPopup("Team 1 Wins 🎉");
       }
+      return;
     }
   }
 
   if(innings===2 && runs>=target){
+    matchEnded=true;
     showPopup("Target Reached 🎯");
   }
 }
 
+/* ---------- POPUP ---------- */
 function showPopup(text){
+  if(popupActive) return;
+  popupActive=true;
+
   document.getElementById("popupText").innerHTML=text;
   document.getElementById("popup").classList.remove("hidden");
 }
 
 function closePopup(){
+  popupActive=false;
   document.getElementById("popup").classList.add("hidden");
 
-  if(innings===2 && runs<target){
-    // do nothing
-  } else if(innings===2){
-    return;
-  } else {
+  if(innings===1){
     newInnings();
   }
 }
