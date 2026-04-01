@@ -1,3 +1,3 @@
 # cricket-scoreboard
-self-explanatory /n
+self-explanatory 
 access it here: https://eeveeyynaerlge.github.io/cricket-scoreboard/
