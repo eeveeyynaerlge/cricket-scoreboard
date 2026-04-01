@@ -9,13 +9,39 @@ body { font-family: Arial; margin:0; background:#111; color:white; text-align:ce
 .container { max-width:600px; margin:auto; padding:10px; }
 .score { font-size:40px; font-weight:bold; }
 .sub { color:#ccc; }
-.section { margin:10px 0; }
 input { width:60px; margin:3px; }
-button { padding:12px; font-size:16px; margin:3px; border:none; border-radius:8px; background:#333; color:white; }
+
+button {
+  padding:12px;
+  font-size:16px;
+  margin:3px;
+  border:none;
+  border-radius:8px;
+  background:#333;
+  color:white;
+}
+
 .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
 .batsmen { display:flex; justify-content:space-between; margin-top:10px; }
 .player { background:#222; padding:8px; border-radius:8px; width:40%; }
 .hidden { display:none; }
+
+/* POPUP */
+.modal {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.8);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.modal-box {
+  background:#222;
+  padding:20px;
+  border-radius:10px;
+}
 </style>
 </head>
 
@@ -25,15 +51,20 @@ button { padding:12px; font-size:16px; margin:3px; border:none; border-radius:8p
 <!-- SETUP -->
 <div id="setup">
   <h2>Match Setup</h2>
+
   Players/team <input id="players" value="11"><br>
   Balls/over <input id="ballsOver" value="6"><br>
   Overs limit <input id="oversLimit" value="5"><br>
-  Overs per wicket <input id="oversWicket" value="0"><br>
+
+  Quick Cricket (1 batsman)
+  <input type="checkbox" id="quickMode"><br>
+
   <button onclick="startMatch()">Start Match</button>
 </div>
 
 <!-- GAME -->
 <div id="game" class="hidden">
+
   <div class="score" id="score">0 / 0</div>
   <div class="sub" id="info"></div>
   <div class="sub" id="target"></div>
@@ -64,29 +95,35 @@ button { padding:12px; font-size:16px; margin:3px; border:none; border-radius:8p
 
     <button onclick="undo()">Undo</button>
   </div>
+
 </div>
 
+</div>
+
+<!-- POPUP -->
+<div id="popup" class="modal hidden">
+  <div class="modal-box">
+    <h2 id="popupText"></h2>
+    <button onclick="closePopup()">Continue</button>
+  </div>
 </div>
 
 <script>
-/* SETTINGS */
-let players, ballsPerOver, oversLimit, oversPerWicket;
+let players, ballsPerOver, oversLimit, quickMode;
 
-/* MATCH */
 let innings = 1;
 let target = 0;
 
-/* STATE */
 let runs, wickets, balls;
 let bat1, bat2, striker;
 let history = [];
 
-/* ---------- MATCH SETUP ---------- */
+/* ---------- SETUP ---------- */
 function startMatch(){
   players = +document.getElementById("players").value;
   ballsPerOver = +document.getElementById("ballsOver").value;
   oversLimit = +document.getElementById("oversLimit").value;
-  oversPerWicket = +document.getElementById("oversWicket").value;
+  quickMode = document.getElementById("quickMode").checked;
 
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("game").classList.remove("hidden");
@@ -95,47 +132,53 @@ function startMatch(){
 }
 
 function newInnings(){
-  runs = 0; wickets = 0; balls = 0;
-  bat1 = {runs:0, balls:0};
-  bat2 = {runs:0, balls:0};
-  striker = 1;
-  history = [];
+  runs=0; wickets=0; balls=0;
+  bat1={runs:0,balls:0};
+  bat2={runs:0,balls:0};
+  striker=1;
+  history=[];
   update();
 }
 
 /* ---------- DISPLAY ---------- */
 function update(){
-  let overs = Math.floor(balls / ballsPerOver);
-  let rem = balls % ballsPerOver;
+  let overs=Math.floor(balls/ballsPerOver);
+  let rem=balls%ballsPerOver;
 
-  document.getElementById("score").innerText = runs+" / "+wickets;
-  document.getElementById("info").innerText = "Innings "+innings+" | Overs "+overs+"."+rem;
-  document.getElementById("wkts").innerText = "Wkts: "+wickets;
+  document.getElementById("score").innerText=runs+" / "+wickets;
+  document.getElementById("info").innerText="Innings "+innings+" | "+overs+"."+rem;
+  document.getElementById("wkts").innerText="Wkts: "+wickets;
 
-  document.getElementById("bat1").innerText = bat1.runs+" ("+bat1.balls+")";
-  document.getElementById("bat2").innerText = bat2.runs+" ("+bat2.balls+")";
+  document.getElementById("bat1").innerText=bat1.runs+" ("+bat1.balls+")";
+  document.getElementById("bat2").innerText=bat2.runs+" ("+bat2.balls+")";
 
   if(innings===2){
-    let need = target - runs;
-    document.getElementById("target").innerText = need>0 ? "Need "+need : "Target Reached!";
+    let need=target-runs;
+    document.getElementById("target").innerText=need>0?"Need "+need:"Target reached!";
   }
 }
 
-/* ---------- CORE LOGIC ---------- */
-function swap(){ striker = striker===1?2:1; }
+/* ---------- CORE ---------- */
+function swap(){ striker=striker===1?2:1; }
 
 function addBall(){
   balls++;
   if(striker===1) bat1.balls++; else bat2.balls++;
-  if(balls % ballsPerOver === 0) swap();
+
+  if(balls%ballsPerOver===0 && !quickMode){
+    swap();
+  }
 }
 
 function scoreRuns(r){
   save();
-  runs += r;
+  runs+=r;
   addBall();
-  if(striker===1) bat1.runs += r; else bat2.runs += r;
-  if(r%2===1) swap();
+
+  if(striker===1) bat1.runs+=r; else bat2.runs+=r;
+
+  if(r%2===1 && !quickMode) swap();
+
   checkEnd();
   update();
 }
@@ -144,7 +187,14 @@ function wicket(){
   save();
   wickets++;
   addBall();
-  if(striker===1) bat1={runs:0,balls:0}; else bat2={runs:0,balls:0};
+
+  if(quickMode){
+    bat1={runs:0,balls:0}; // always single batter
+  } else {
+    if(striker===1) bat1={runs:0,balls:0};
+    else bat2={runs:0,balls:0};
+  }
+
   checkEnd();
   update();
 }
@@ -152,84 +202,90 @@ function wicket(){
 /* ---------- EXTRAS ---------- */
 function extra(type){
   save();
-  if(type==="wide") runs +=1;
-  if(type==="bye" || type==="legbye"){
+
+  if(type==="wide") runs+=1;
+
+  if(type==="bye"||type==="legbye"){
     runs+=1;
     addBall();
-    swap();
+    if(!quickMode) swap();
   }
+
   checkEnd();
   update();
 }
 
 function noBall(r){
   save();
-  runs += 1 + r;
-  if(striker===1) bat1.runs += r; else bat2.runs += r;
-  if((1+r)%2===1) swap();
+  runs+=1+r;
+
+  if(striker===1) bat1.runs+=r; else bat2.runs+=r;
+
+  if((1+r)%2===1 && !quickMode) swap();
+
   checkEnd();
   update();
 }
 
-/* ---------- END LOGIC ---------- */
+/* ---------- END + POPUP ---------- */
 function checkEnd(){
-  let overs = Math.floor(balls/ballsPerOver);
-  let allOut = wickets >= players-1;
-  let oversUp = overs >= oversLimit;
+  let overs=Math.floor(balls/ballsPerOver);
 
-  if(allOut || oversUp){
+  let allOut=wickets>=players-1;
+  let oversUp=overs>=oversLimit;
+
+  if(allOut||oversUp){
+    let reason = allOut ? "All Out" : "Overs Completed";
+
     if(innings===1){
-      target = runs+1;
+      target=runs+1;
+      showPopup("End of Innings 1 ("+reason+")<br>Target: "+target);
       innings=2;
-      newInnings();
     } else {
-      // Second innings complete → check result
-      if(runs === target-1){
-        endMatch('tie');
-      } else if(runs >= target){
-        endMatch('team2');
+      if(runs===target-1){
+        showPopup("Match Tied 🤝");
+      } else if(runs>=target){
+        showPopup("Team 2 Wins 🎉");
       } else {
-        endMatch('team1');
+        showPopup("Team 1 Wins 🎉");
       }
     }
   }
 
   if(innings===2 && runs>=target){
-    endMatch('team2');
+    showPopup("Target Reached 🎯");
   }
 }
 
-function endMatch(result){
-  let message="";
-  if(result==='team2') message="Team 2 Wins 🎉";
-  else if(result==='team1') message="Team 1 Wins 🎉";
-  else if(result==='tie') message="Match Tied 🤝";
-  else message="Innings Complete";
-  document.getElementById("target").innerText = message;
+function showPopup(text){
+  document.getElementById("popupText").innerHTML=text;
+  document.getElementById("popup").classList.remove("hidden");
+}
+
+function closePopup(){
+  document.getElementById("popup").classList.add("hidden");
+
+  if(innings===2 && runs<target){
+    // do nothing
+  } else if(innings===2){
+    return;
+  } else {
+    newInnings();
+  }
 }
 
 /* ---------- UNDO ---------- */
 function save(){
   history.push(JSON.stringify({runs,wickets,balls,bat1,bat2,striker}));
 }
+
 function undo(){
   if(history.length){
-    let s = JSON.parse(history.pop());
+    let s=JSON.parse(history.pop());
     Object.assign(window,s);
     update();
   }
 }
-
-/* ---------- DESKTOP KEYBOARD ---------- */
-document.addEventListener("keydown",(e)=>{
-  if(e.key==='1') scoreRuns(1);
-  if(e.key==='2') scoreRuns(2);
-  if(e.key==='3') scoreRuns(3);
-  if(e.key==='4') scoreRuns(4);
-  if(e.key==='6') scoreRuns(6);
-  if(e.key==='0') scoreRuns(0);
-  if(e.key.toLowerCase()==='w') wicket();
-});
 
 update();
 </script>
